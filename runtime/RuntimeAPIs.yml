@@ -1,364 +1,388 @@
 openapi: 3.0.1
 info:
-  title: Logik Configurator Runtime APIs
-  description: Logik.io End User API Definition. Shows payload structure and schema, authroization approach and endpoint format. Can be used for custom UI or headless implementations.
+  title: Logik Configurator Runtime APIs V1
+  version: 2.0.1
+  description: |
+    Logik.io End User API Definition. Shows payload structure and schema, authroization approach and endpoint format. Can be used for custom UI or headless implementations.
+
+    ## Important Versioning Information
+
+    Blueprints that use Product Picker Fields ***must*** use the `application/vnd.logik.cfg-v2+json` Content-Type when making requests.
+
+     The Runtime APIs are versioned using different Content-Types. There are 2 Content-Type formats, `application/json` for v1 and `application/vnd.logik.cfg-v2+json` for v2.
+      - `application/json`: can be used with regular Logik field types (number, boolean, text and picklist) and sets.
+      - `application/vnd.logik.cfg-v2+json`: can be used with all regular field types as well as Product Picker Fields.
+      
+    The Accept Header should match the Content-Type being used, either:
+      - `application/json`: for v1.
+      - `application/vnd.logik.cfg-v2+json, application/json`: for v2.
+
   contact:
     email: support@logik.io
-  version: 2.0.0
 servers:
-- url: https://{tenantName}.{sectorName}.logik.io/api
-  variables:
-    tenantName:
-      default: demo
-      description: Customer ID assigned by the service provider
-    sectorName:
-      default: demo
-      description: Customer ID assigned by the service provider
+  - url: https://{tenant}.{sector}.logik.io
+    variables:
+      tenant:
+        default: example
+        description: "Logik.io tenant"
+      sector:
+        default: test
+        description: "Logik.io sector"
+security:
+  - RuntimeTokenBearerAuth: []
 tags:
-- name: Configuration
-  description: APIs to operate on Configuration blueprint to generate BOM
-- name: BOM
-  description: APIs to retrieve BOM information
+  - name: Configuration
+    description: Creating new configurations, reconfiguring existing configurations, making updates to a configuration and saving changes.
+  - name: Bill of Materials
+    description: Get Bill of Materials (BOM) information for a given configuration UUID.
 paths:
-  /:
+  /api:
     post:
       tags:
-      - Configuration
-      summary: Initialize a new Configuration
-      operationId: initConfig
+        - Configuration
+      summary: Start Configuration
+      description: Initialize a new Configuration or reconfigure an existing Configuration if passing an existing Logik Configuration UUID in the Request Body.
+      operationId: startConfig
+      parameters:
+        - $ref: "#/components/parameters/headerOrigin"
       requestBody:
         description: Configurable Product Object to initialize
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/InitConfig'
-        required: true
+              $ref: "#/components/schemas/InitConfig"
       responses:
         200:
-          description: Return initial state of fields, messages and products
+          description: Return the state of configuration at initalization or reconfiguration. Includes fields, messages and products.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ApiResponse'
-      security:
-      - BearerAuth: []
-      x-codegen-request-body-name: body
-  /{uuid}:
+                $ref: "#/components/schemas/ConfigResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/NotAuthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "5XX":
+          $ref: "#/components/responses/ServerError"
+
+  /api/{uuid}:
     get:
       tags:
-      - Configuration
-      summary: Get Configuration with the given uuid
-      operationId: getConfig
+        - Configuration
+      summary: Get Configuration
+      description: |
+        Returns the Configuration state from the given Configuration UUID. This *does not* allow changes to made to the Configuration. To make changes, reconfigure using the POST call.
+      operationId: getConfigByUuid
       parameters:
-      - name: uuid
-        in: path
-        description: Unique Configuration ID Value
-        required: true
-        schema:
-          type: string
+        - $ref: "#/components/parameters/headerOrigin"
+        - $ref: "#/components/parameters/ConfigurationUUID"
       responses:
         200:
           description: Return initial state of fields, messages and products
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ApiResponse'
-        400:
-          description: Returns Error Message from the server if invalid uuid
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-      security:
-      - BearerAuth: []
+                $ref: "#/components/schemas/ConfigResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/NotAuthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "5XX":
+          $ref: "#/components/responses/ServerError"
     patch:
       tags:
-      - Configuration
-      summary: Update/Save Configuration with the given uuid
-      operationId: updateConfig
+        - Configuration
+      summary: Update or Save Configuration
+      description: |
+        Update or Save Configuration with the provided Configuration UUID.
+      operationId: updateConfigByUuid
       parameters:
-      - name: uuid
-        in: path
-        description: Unique Configuration ID Value
-        required: true
-        schema:
-          type: string
-      - name: delta
-        in: query
-        description: Delta true only retruns changed data. This is default behavior
-          of the API
-        schema:
-          type: boolean
-      - name: save
-        in: query
-        description: Pass save parameter as true to save the Configuration and send
-          BOM to connected application
-        schema:
-          type: boolean
+        - $ref: "#/components/parameters/headerOrigin"
+        - $ref: "#/components/parameters/ConfigurationUUID"
+        - $ref: "#/components/parameters/queryDelta"
+        - $ref: "#/components/parameters/querySave"
       requestBody:
-        description: Configurable Product Object to initialize
+        description: Update or Save Payload for a Configuration.
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/UpdateConfig'
+              $ref: "#/components/schemas/UpdateConfig"
         required: true
       responses:
         200:
-          description: Return initial state of fields, messages and products
+          description: Returns state of fields, messages and products
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ApiResponse'
-        400:
-          description: 'Returns Error Message from the server '
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        500:
-          description: 'Returns Error Message from the server '
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-      security:
-      - BearerAuth: []
-      x-codegen-request-body-name: body
-  /{uuid}/sets/{setVariableName}:
+                $ref: "#/components/schemas/ConfigResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/NotAuthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "5XX":
+          $ref: "#/components/responses/ServerError"
+  /api/{uuid}/sets/{setVariableName}:
     get:
       tags:
-      - Configuration
-      summary: Access fields in a given Set. Use if Set flagged in relatedChanges
+        - Configuration
+      summary:
+        Access fields in a given Set. Use if Set flagged in relatedChanges
         param
       operationId: getSet
       parameters:
-      - name: uuid
-        in: path
-        description: Unique Configuration ID Value
-        required: true
-        schema:
-          type: string
-      - name: setVariableName
-        in: path
-        description: Variable name of the Set defined in admin for which data is requested
-        required: true
-        schema:
-          type: string
-      - name: page
-        in: query
-        description: Page number of data to be returned in response
-        schema:
-          type: integer
-      - name: limit
-        in: query
-        description: Size of Paged Data
-        schema:
-          type: integer
-      - name: sort
-        in: query
-        description: Specify property and order{asc|desc} of sort in format field,asc[desc]
-        schema:
-          type: string
+        - $ref: "#/components/parameters/headerOrigin"
+        - $ref: "#/components/parameters/ConfigurationUUID"
+        - name: setVariableName
+          in: path
+          description: Variable name of the Set defined in admin for which data is requested
+          required: true
+          schema:
+            type: string
+        - $ref: "#/components/parameters/queryPage"
+        - $ref: "#/components/parameters/queryLimit"
+        - $ref: "#/components/parameters/querySort"
       responses:
         200:
           description: Paginated details for a given Set variable name
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SetsResponse'
-        404:
-          description: Returns Error Message from the server if invalid uuid or set
-            variable name
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-      security:
-      - BearerAuth: []
-  /{uuid}/bom/sales:
+                $ref: "#/components/schemas/SetsResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/NotAuthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "5XX":
+          $ref: "#/components/responses/ServerError"
+  /api/{uuid}/bom:
     get:
       tags:
-      - BOM
-      summary: Get Sales BOM with the given uuid for current state of Configuration
-      operationId: getSalesBOM
+        - Bill of Materials
+      summary: Get BOM
+      description: Get BOM with the given uuid for current state of Configuration
+      operationId: getAllBom
       parameters:
-      - name: uuid
-        in: path
-        description: Unique Configuration ID Value
-        required: true
-        schema:
-          type: string
-      - name: page
-        in: query
-        description: Page number of data to be returned in response
-        schema:
-          type: integer
-      - name: limit
-        in: query
-        description: Size of Paged Data
-        schema:
-          type: integer
-      - name: sort
-        in: query
-        description: Specify property and order{asc|desc} of sort in format field,asc[desc]
-        schema:
-          type: string
-      responses:
-        200:
-          description: Return Sales BOM snapshot of Configuration
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/BOMResponse'
-        400:
-          description: Returns Error Message from the server if invalid uuid
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-      security:
-      - BearerAuth: []
-  /{uuid}/bom/{custom}:
-    get:
-      tags:
-      - BOM
-      summary: Get Custom BOM type line items defined in the admin
-      operationId: getCustomBOM
-      parameters:
-      - name: custom
-        in: path
-        description: Custom BOM Type name
-        required: true
-        schema:
-          type: string
-      - name: uuid
-        in: path
-        description: Unique Configuration ID Value
-        required: true
-        schema:
-          type: string
-      - name: page
-        in: query
-        description: Page number of data to be returned in response
-        schema:
-          type: integer
-      - name: limit
-        in: query
-        description: Size of Paged Data
-        schema:
-          type: integer
-      - name: sort
-        in: query
-        description: Specify property and order{asc|desc} of sort in format field,asc[desc]
-        schema:
-          type: string
-      responses:
-        200:
-          description: Return Sales BOM snapshot of Configuration
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/BOMResponse'
-        400:
-          description: Returns Error Message from the server if invalid uuid
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-      security:
-      - BearerAuth: []
-  /{uuid}/bom/manufacturing:
-    get:
-      tags:
-      - BOM
-      summary: Get Manufacturing BOM with the given uuid for current state of Configuration
-      operationId: getManufacturingBOM
-      parameters:
-      - name: uuid
-        in: path
-        description: Unique Configuration ID Value
-        required: true
-        schema:
-          type: string
-      - name: page
-        in: query
-        description: Page number of data to be returned in response
-        schema:
-          type: integer
-      - name: limit
-        in: query
-        description: Size of Paged Data
-        schema:
-          type: integer
-      - name: sort
-        in: query
-        description: Specify property and order{asc|desc} of sort in format field,asc[desc]
-        schema:
-          type: string
-      responses:
-        200:
-          description: Return Manufacturing BOM snapshot of Configuration
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/BOMResponse'
-        400:
-          description: Returns Error Message from the server if invalid uuid
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-      security:
-      - BearerAuth: []
-  /{uuid}/bom/:
-    get:
-      tags:
-      - BOM
-      summary: Get Entire BOM with the given uuid for current state of Configuration
-      operationId: getAllBOM
-      parameters:
-      - name: uuid
-        in: path
-        description: Unique Configuration ID Value
-        required: true
-        schema:
-          type: string
-      - name: page
-        in: query
-        description: Page number of data to be returned in response
-        schema:
-          type: integer
-      - name: limit
-        in: query
-        description: Size of Paged Data
-        schema:
-          type: integer
-      - name: sort
-        in: query
-        description: Specify property and order{asc|desc} of sort in format field,asc[desc]
-        schema:
-          type: string
-      - name: bomType
-        in: query
-        description: Pass comma separated list of bom types to be returned
-        schema:
-          type: string
+        - $ref: "#/components/parameters/headerOrigin"
+        - $ref: "#/components/parameters/ConfigurationUUID"
+        - $ref: "#/components/parameters/queryPage"
+        - $ref: "#/components/parameters/queryLimit"
+        - $ref: "#/components/parameters/querySort"
+        - name: bomType
+          in: query
+          description: Pass comma separated list of bom types to be returned
+          schema:
+            type: string
       responses:
         200:
           description: Return Entire BOM snapshot of Configuration
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/BOMResponse'
-        400:
-          description: Returns Error Message from the server if invalid uuid
+                $ref: "#/components/schemas/BOMResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/NotAuthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "5XX":
+          $ref: "#/components/responses/ServerError"
+  /api/{uuid}/bom/sales:
+    get:
+      tags:
+        - Bill of Materials
+      summary: Get Sales BOM
+      description: Get Sales BOM with the given uuid for current state of Configuration
+      operationId: getSalesBom
+      parameters:
+        - $ref: "#/components/parameters/headerOrigin"
+        - $ref: "#/components/parameters/ConfigurationUUID"
+        - $ref: "#/components/parameters/queryPage"
+        - $ref: "#/components/parameters/queryLimit"
+        - $ref: "#/components/parameters/querySort"
+      responses:
+        200:
+          description: Return current sales BOM of Configuration
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-      security:
-      - BearerAuth: []
+                $ref: "#/components/schemas/BOMResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/NotAuthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "5XX":
+          $ref: "#/components/responses/ServerError"
+  /api/{uuid}/bom/manufacturing:
+    get:
+      tags:
+        - Bill of Materials
+      summary: Get Manufacturing BOM
+      description: Get Manufacturing BOM with the given uuid for current state of Configuration.
+      operationId: getManufacturingBomV2
+      parameters:
+        - $ref: "#/components/parameters/headerOrigin"
+        - $ref: "#/components/parameters/ConfigurationUUID"
+        - $ref: "#/components/parameters/queryPage"
+        - $ref: "#/components/parameters/queryLimit"
+        - $ref: "#/components/parameters/querySort"
+      responses:
+        200:
+          description: Return Manufacturing BOM snapshot of Configuration
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BOMResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/NotAuthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "5XX":
+          $ref: "#/components/responses/ServerError"
+  /api/{uuid}/bom/{custom}:
+    get:
+      tags:
+        - Bill of Materials
+      summary: Get Custom BOM
+      description: Get Custom BOM type line items defined in the admin
+      operationId: getBomByNameV2
+      parameters:
+        - $ref: "#/components/parameters/headerOrigin"
+        - name: custom
+          in: path
+          description: Custom BOM Type name
+          required: true
+          schema:
+            type: string
+        - $ref: "#/components/parameters/ConfigurationUUID"
+        - $ref: "#/components/parameters/queryPage"
+        - $ref: "#/components/parameters/queryLimit"
+        - $ref: "#/components/parameters/querySort"
+      responses:
+        200:
+          description: Returns BOM snapshot of Configuration
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BOMResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/NotAuthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "5XX":
+          $ref: "#/components/responses/ServerError"
 components:
+  parameters:
+    headerOrigin:
+      in: header
+      name: Origin
+      description: Request Origin, needs to be one of the allowed origins for the Runtime Token being used.
+      schema:
+        type: string
+      required: true
+    ConfigurationUUID:
+      in: path
+      name: uuid
+      description: Unique Configuration ID Value
+      required: true
+      schema:
+        type: string
+    queryPage:
+      in: "query"
+      name: "page"
+      description: "Page number of results to return"
+      schema:
+        type: "number"
+        default: 0
+      required: true
+    queryLimit:
+      in: "query"
+      name: "limit"
+      description: "Size of the paged data results"
+      schema:
+        type: "number"
+        default: 100
+      required: true
+    querySort:
+      in: "query"
+      name: "sort"
+      description: "Sort field and order of the results, specify property and order{asc|desc} of sort in format field,asc[desc]"
+      schema:
+        type: "string"
+        default: "modified%2CDESC"
+      required: true
+    querySave:
+      name: save
+      in: query
+      description:
+        Pass save parameter as true to save the Configuration and send
+        BOM to connected application
+      schema:
+        type: boolean
+        default: false
+    queryDelta:
+      name: delta
+      in: query
+      description:
+        If `delta=true` the API only retruns changed data. This is default behavior
+        of the API if the parameter is omitted.
+      schema:
+        type: boolean
+        default: true
+
+  responses:
+    BadRequest:
+      description: Bad request. See `errorMessage` for additional details.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    NotAuthorized:
+      description: Authorization information is missing or invalid.
+    Forbidden:
+      description: Credentials are valid but insufficient privileges to perform the action on the resource.
+    NotFound:
+      description: Resource was not found. See `errorMessage` for additional details.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    ServerError:
+      description: Unexpected Server Error.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
   schemas:
     ErrorResponse:
       type: object
@@ -378,7 +402,7 @@ components:
         fields:
           type: array
           items:
-            $ref: '#/components/schemas/FieldPayload'
+            $ref: "#/components/schemas/FieldPayload"
     InitConfig:
       type: object
       properties:
@@ -389,7 +413,7 @@ components:
               type: boolean
         partnerData:
           required:
-          - product
+            - product
           type: object
           properties:
             product:
@@ -403,7 +427,8 @@ components:
                   properties:
                     LGK__ConfigurationId__c:
                       type: string
-                      description: Configuration Id which was generated for saved
+                      description:
+                        Configuration Id which was generated for saved
                         configuration
         quote:
           type: object
@@ -413,14 +438,14 @@ components:
         fields:
           type: array
           items:
-            $ref: '#/components/schemas/FieldPayload'
+            $ref: "#/components/schemas/FieldPayload"
     BOMResponse:
       type: object
       properties:
         products:
           type: array
           items:
-            $ref: '#/components/schemas/Product'
+            $ref: "#/components/schemas/Product"
         pageable:
           type: object
           properties:
@@ -505,17 +530,17 @@ components:
           type: string
         optionSet:
           required:
-          - options
+            - options
           type: object
           properties:
             options:
               type: array
               items:
                 required:
-                - label
-                - orderNumber
-                - state
-                - value
+                  - label
+                  - orderNumber
+                  - state
+                  - value
                 type: object
                 properties:
                   label:
@@ -530,10 +555,10 @@ components:
                     type: integer
     Message:
       required:
-      - error
-      - field
-      - message
-      - type
+        - error
+        - field
+        - message
+        - type
       type: object
       properties:
         message:
@@ -544,13 +569,13 @@ components:
           type: boolean
         field:
           type: string
-    ApiResponse:
+    ConfigResponse:
       type: object
       properties:
         fields:
           type: array
           items:
-            $ref: '#/components/schemas/Field'
+            $ref: "#/components/schemas/Field"
         uuid:
           type: string
         revision:
@@ -560,18 +585,18 @@ components:
         messages:
           type: array
           items:
-            $ref: '#/components/schemas/Message'
+            $ref: "#/components/schemas/Message"
         productChange:
           type: boolean
         products:
           type: array
           items:
-            $ref: '#/components/schemas/Product'
+            $ref: "#/components/schemas/Product"
         layouts:
           type: array
           items:
             required:
-            - url
+              - url
             type: object
             properties:
               url:
@@ -579,7 +604,7 @@ components:
         relatedChanges:
           type: array
           items:
-            $ref: '#/components/schemas/relatedChangesValue'
+            $ref: "#/components/schemas/relatedChangesValue"
     relatedChangesValue:
       type: object
       properties:
@@ -587,7 +612,8 @@ components:
           type: string
         type:
           type: string
-          description: Value of SET|PRODUCT which will return KEY value as variable
+          description:
+            Value of SET|PRODUCT which will return KEY value as variable
             name of set or static value products
     SetsContent:
       type: object
@@ -597,14 +623,14 @@ components:
         fields:
           type: array
           items:
-            $ref: '#/components/schemas/Field'
+            $ref: "#/components/schemas/Field"
     SetsResponse:
       type: object
       properties:
         content:
           type: array
           items:
-            $ref: '#/components/schemas/SetsContent'
+            $ref: "#/components/schemas/SetsContent"
         pageable:
           type: object
           properties:
@@ -645,7 +671,12 @@ components:
           type: boolean
         total:
           type: integer
+
   securitySchemes:
-    BearerAuth:
+    RuntimeTokenBearerAuth:
       type: http
       scheme: bearer
+      description: |
+        Runtime Token to use for requests. Created in the Logik.io Admin, under Runtime Clients. 
+
+        Must also be configured to allow the Origin that is passed as a Header parameter in all requests.
